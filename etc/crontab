@@ -1,0 +1,5 @@
+MAILTO=""
+PATH=/sbin:/bin:/usr/sbin:/usr/bin:/usr/syno/sbin:/usr/syno/bin:/usr/local/sbin:/usr/local/bin
+#minute	hour	mday	month	wday	who	command
+*	*	*	*	*	root	/usr/local/bin/phcp-cron.sh
+10	*	*	*	*	root	/var/services/homes/ershov/update-rss

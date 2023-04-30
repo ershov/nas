@@ -1,0 +1,9 @@
+#!/bin/bash
+
+# vim /etc/crontab
+# systemctl restart crond
+# systemctl restart synoscheduler
+
+set -o pipefail;
+
+wget --no-hsts -q 'https://www.youtube.com/@user-pk5sj1yt7i/videos' -O - | FORMAT=rss /var/services/homes/ershov/parse-youtube-feed > /volume1/web/rss/.khazin.rss && mv -f /volume1/web/rss/.khazin.rss /volume1/web/rss/khazin.rss || rm -f /volume1/web/rss/.khazin.rss

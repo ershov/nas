@@ -1,0 +1,15 @@
+#/bin/bash
+
+# https://stackoverflow.com/questions/11453082/how-to-generate-a-2hour-long-blank-video
+
+for F in "$@"; do
+  echo "    Encoding as video $F ..."
+  EXT="$(ffmpeg -i "$F" -f null /dev/null 2>&1 | perl -nE '/Stream .*: Audio: (\w++)/ && (say($1),exit)')"
+  echo "Audio stream type: $EXT"
+  [[ "$EXT" == "aac" ]] && AOPT="-c:a copy" || AOPT="-c:a aac -b:a 128k"
+  F2="${F%.*}.mp4"
+  [[ "$F2" -nt "$F" ]] && echo "$F2: skipping conversion" || \
+    ffmpeg -y -s 640x480 -f rawvideo -pix_fmt rgb24 -r 30 -i /dev/zero -i "$F" -c:v libx264 -tune stillimage -pix_fmt yuv420p -shortest $AOPT "$F2"
+    #ffmpeg -y -f lavfi -i color=c=black:s=640x480 -i "$F" -c:v libx264 -tune stillimage -pix_fmt yuv420p -shortest $AOPT "$F2"
+  file "$F2"
+done

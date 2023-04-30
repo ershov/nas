@@ -1,0 +1,199 @@
+#!/usr/bin/perl
+
+use v5.26;
+use warnings;
+no warnings 'uninitialized';
+use strict;
+
+if ($ARGV[0] =~ /^[-]+h(elp)?$/) {
+  ($_=$0) =~ m{/([^/]+)$} and $_ = $1;
+  print << "_E";
+Extract JSON and display it in flat format suitable for grepping.
+This tool tolerates any dirty input.
+
+Usage:
+[K=V ...] $_ file.js
+[K=V ...] $_ < file.html
+
+Environment variables:
+
+ARRAYS=1      $_ - Parse plain value arrays (may return false positives).
+
+DETAILS=2     $_ - More or less details for output:
+                   0=nothing  1=field values  2=struct start/end
+
+NAMES=3       $_ - Indicate the file and object names on separate lines:
+                   0=none  1=file  2=file+part  3=file+part+object
+
+SP=.          $_ - Nested field separator.
+
+EXTRACT=      $_ - Extract script prior to parsing:
+                   '' or 'html'
+
+ADD_FILE=auto $_ - Include the file name part into the field path.
+                   0=no  1=yes  'auto'=only if there are more than one file.
+
+ADD_OBJ=1     $_ - Include the object name part into the field path.
+
+VAL=uq        $_ - Value format:
+                   'raw'=source  'uq'=unquoted  'p'=parsed.
+
+PRINT_JSON=0  $_  Print out extracted JSON.
+
+    For VAL=p (parsed) string:
+SS=           $_ - String Start delimiter.
+SE=           $_ - String End delimiter.
+NL=\$'\\n'      $_ - Replace the newlines with this string.
+
+Command line flags:
+--parse, -p                     Parse JSON-encoded string from args.
+--parse-stdin                   Parse JSON-encoded string from stdin.
+--extract-scripts [separator]   Extract scripts from HTML (read from stdin).
+--strip-scripts                 Strip scripts from HTML (read from stdin).
+--help, -h                      Display help.
+
+Examples:
+
+\$ EXTRACT=html DETAILS=1 $_ *.html
+\$ EXTRACT=html DETAILS=0 NAMES=3 PRINT_JSON=1 $_ *.html | grep ...
+\$ VAL=p $_ f.html f.js
+
+_E
+  exit;
+}
+
+# Simple script extractor:
+# perl -E '$/=undef; $_=<>; say join "\n-----\n", m{<script\b([^>]*|"[^"]*")*>\K.*?(?=</script)}imsng'
+# Simple script remover:
+# perl -E '$/=undef; $_=<>; s{<script\b([^>]*|"[^"]*")*>.*?</script\b([^>]*|"[^"]*")*>}{}imsng; say;'
+
+sub E($$) { exists $ENV{$_[0]} ? $ENV{$_[0]} : $_[1]; }
+my $ARRAYS = E("ARRAYS", 1);
+my $DETAILS = E("DETAILS", 2);
+my $SP = E("SP", '.');
+my $VAL = E("VAL", 'uq');
+my $SS = E("SS", '');
+my $SE = E("SE", '');
+my $NL = E("NL", "\n");
+my $NAMES = E("NAMES", 0);
+my $EXTRACT = E("EXTRACT", '');
+my $ADD_FILE = E("ADD_FILE", 'auto');
+my $ADD_OBJ = E("ADD_OBJ", 1);
+my $PRINT_JSON = E("PRINT_JSON", 0);
+
+my @s;  # stack
+#my %v;  # last value cache (tail of)
+
+sub isSuffix($) { substr((join $SP, @s), -length($_[0])) eq $_[0] }
+sub isPath($) { (join $SP, @s) eq $_[0] }
+
+# https://www.ietf.org/rfc/rfc4627.txt
+my %ch = ('"' => '"', "\\" => "\\", '/' => '/', b => "\x08", f => "\x0C", n => "\x0A", r => "\x0D", t => "\x09");
+my %chJs = %ch;
+sub uhchr($) { use utf8; my $x = chr(hex($_[0])); utf8::encode($x); $x }
+sub parseStr($) {
+  $_[0] =~ s{\\(?:(["\\\/bfnrt])|u([0-9a-fA-F]{4}))}{$1 ? $chJs{$1} : uhchr($2)}gexr;
+}
+$chJs{n} = $NL; # parseStr($NL);
+sub extractFromHtml($) {
+  local $_ = $_[0];
+  #m{<script\b([^>]*|"[^"]*")*>(?<script>.*?)</script}imsng;
+  m{<script\b([^>]*|"[^"]*")*>\K.*?(?=</script)}imsng;
+}
+
+if ($ARGV[0] =~ /^[-]+p(arse)?$/) {
+  shift @ARGV;
+  print join "", map {parseStr($_)} @ARGV;
+  exit;
+}
+if ($ARGV[0] =~ /^[-]+parse-stdin$/) {
+  print join "", map { local $/=undef; parseStr(<STDIN>) } @ARGV;
+  exit;
+}
+if ($ARGV[0] =~ /^[-]+extract-scripts$/) {
+  shift @ARGV;
+  do { local $/=undef; $_=<STDIN>; };
+  say join((@ARGV ? "\n$ARGV[0]\n" : ''), m{<script\b([^>]*|"[^"]*")*>\K.*?(?=</script)}imsng);
+  exit;
+}
+if ($ARGV[0] =~ /^[-]+strip-scripts$/) {
+  do { local $/=undef; $_=<STDIN>; };
+  s{<script\b([^>]*|"[^"]*")*>.*?</script\b([^>]*|"[^"]*")*>}{}imsng;
+  say;
+  exit;
+}
+
+$ADD_FILE eq 'auto' and $ADD_FILE = @ARGV > 1;
+
+my $array_re = $ARRAYS ? '|(?<val>"(?<valv>(?:[^"\\\\]|\\\\.)*+)")|(?<val>(?<valv>[\w\d_\.\+\-]++))' : '';
+
+while (1) {
+  { local $/=undef; $_=<> };
+  last if $_ eq '';
+  my $fName = "$ARGV";
+  $ADD_FILE && $DETAILS >= 2 ? say "$fName file {" : $NAMES && say "-- file $ARGV {";
+
+  for ($EXTRACT eq 'html' ? extractFromHtml($_) : ($_)) {
+    $ADD_FILE && $DETAILS >= 2 ? say "$fName: part {" : $NAMES > 1 && say "---- part {";
+    my $pos = 0;
+    while (1) {
+      pos() = $pos;
+      m/((?<id>([\w\[\]\.\$\\'"])+)\s*[=(]\s*)?\K[\{\[][\{\[\s]*"/gsn ? $pos = $-[0] : last;
+      my $objName = defined($+{id}) ? "($+{id})" : '';
+      my @prefix = $ADD_FILE || $ADD_OBJ ? join(":", ($ADD_FILE ? $fName : ()), ($ADD_OBJ ? $objName : ())) : ();
+      $ADD_OBJ && $DETAILS >= 2 ? say "@prefix obj {" : $NAMES > 2 && say "------ object $objName {";
+      @s = ();
+      pos() = $pos;
+      my $ppos = $pos;
+      while (/
+              (
+                "(?<key>([^"\\]|\\.)++)"\s*+:\s*+
+                (
+                  (?<br>[{[]) |
+                  (?<val>"(?<valv>([^"\\]|\\.)*+)") |
+                  (?<val>(?<valv>[\w\d_\.\+\-]++))
+                )
+              ) |
+              (?<br>[{}[\]])
+              $array_re
+          /gxn)
+      {
+        if ($+{script}) {
+          @s = ();
+          #%v = ();
+        } else {
+          if ($+{br} eq "{" || $+{br} eq "[") {
+            push @s, ("$+{key}");
+            # Pushed a level down
+            $DETAILS >= 2 and say join($SP, @prefix, @s)." {";
+          }
+          if ($+{br} eq "}" || $+{br} eq "]") {
+            # Popping a level up
+            $DETAILS >= 2 and say join($SP, @prefix, @s)." }";
+            pop @s;
+            if (!@s) {
+              $pos = $+[0];
+              last;
+            }
+          }
+          if (exists $+{val}) {
+            my @ss = (@s, "$+{key}");
+            #for (1 .. @ss) { $v{join $SP, @ss[-$_ .. -1]} = $+{valv}; }
+            my $v =
+              $VAL eq 'raw' ? $+{val} :
+              $VAL eq 'uq' ? $+{valv} :
+              $VAL eq 'p' ? $SS.parseStr($+{valv}).$SE :
+              die "Invalid VAL: $VAL. Should be one of: 'raw', 'uq', 'p'   ";
+            $DETAILS and say join($SP, @prefix, @ss)." = $v";
+          }
+        }
+      }
+      $ADD_OBJ && $DETAILS >= 2 ? say "@prefix obj }" : $NAMES > 2 && say "------ object $objName }";
+      $pos == $ppos and $pos = length($_);
+      $PRINT_JSON and say substr $_, $ppos, $pos-$ppos;
+    }
+    $ADD_FILE && $DETAILS >= 2 ? say "$fName: part }" : $NAMES > 1 && say "---- part }";
+  }
+  $ADD_FILE && $DETAILS >= 2 ? say "$fName file }" : $NAMES && say "-- file $ARGV }";
+}
+

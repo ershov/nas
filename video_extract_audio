@@ -1,0 +1,11 @@
+#/bin/bash
+
+for F in "$@"; do
+  echo "    Extracting audio from $F ..."
+  EXT="$(ffprobe "$F" 2>&1 | perl -nE '/Stream .*: Audio: (\w++)/ && (say($1),exit)')"
+  [[ -z "$EXT" ]] && EXT="audio"
+  echo "Audio stream type: $EXT"
+  F2="${F%.*}.$EXT"
+  [[ "$F2" -nt "$F" ]] && echo "$F2: skipping conversion" || ffmpeg -y -i "$F" -c:a copy "$F2"
+  file "$F2"
+done

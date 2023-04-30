@@ -1,0 +1,34 @@
+$include /etc/inputrc
+
+#   from https://wiki.archlinux.org/index.php/readline
+# Color files by types
+set colored-stats On
+# Append char to indicate type
+set visible-stats On
+# Mark symlinked directories
+set mark-symlinked-directories On
+# Color the common prefix
+set colored-completion-prefix On
+# Color the common prefix in menu-complete
+set menu-complete-display-prefix On
+
+#"\M-C-r": forward-search-history
+#"\e\C-r": forward-search-history
+#"\C-\\": forward-search-history
+"\C-f": forward-search-history
+#"\e\C-r": "\C-s"
+
+# C-PgUp
+#"\e[5;5~": reverse-search-history
+# C-PgDn
+#"\e[6;5~": forward-search-history
+
+
+#"\C-x?": dump-functions
+#"\C-x?": dump-variables
+
+# Expand the current word
+"\C-b": dabbrev-expand
+# Shift-Tab
+"\e[Z": dabbrev-expand
+

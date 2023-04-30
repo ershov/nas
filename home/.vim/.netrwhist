@@ -1,0 +1,12 @@
+let g:netrw_dirhistmax  =10
+let g:netrw_dirhistcnt =5
+let g:netrw_dirhist_5='/Users/ershov/iTerm2/iterm2env-3.8.0/versions/3.8.0/lib/python3.8/site-packages/iterm2'
+let g:netrw_dirhist_4='/Users/ershov/tmp'
+let g:netrw_dirhist_3='/Users/ershov/src/local'
+let g:netrw_dirhist_2='/Users/ershov/src/local/shader-logo'
+let g:netrw_dirhist_1='/Users/ershov/src/github/reaper64/JSFX'
+let g:netrw_dirhist_0='/Users/ershov/src/github/reaper64'
+let g:netrw_dirhist_9='/Users/ershov/src/gob/gmail-condensed'
+let g:netrw_dirhist_8='/Users/ershov/Downloads/EngProd Brand Materials/CrOS EngProd2'
+let g:netrw_dirhist_7='/Users/ershov/1'
+let g:netrw_dirhist_6='/Users/ershov/src/github/js-church'
