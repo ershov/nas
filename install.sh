@@ -30,7 +30,9 @@ cat >> /etc/samba/smb.conf << '_E'
     path = /mnt/data/incoming
     read only = no
     browsable = yes
-    guest ok = yes
+    #guest ok = yes
+    guest ok = no
+    security = user
 
 [photo_upload]
     comment = Photos Upload
@@ -69,3 +71,8 @@ udevadm control -R
 
 # /etc/crontab:
 # */5 *   * * *   ershov  /usr/bin/flock -n /home/ershov/nas/phcp-cron-nas.sh /home/ershov/nas/phcp-cron-nas.sh
+
+perl -npi -E '/FONTSIZE=/ and $_=qq{FONTSIZE="8x14zz"\n}' /etc/default/console-setup
+setupcon
+
+
