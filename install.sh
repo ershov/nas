@@ -145,3 +145,21 @@ SHELL=/bin/sh
 */5 *   * * *   $U  /usr/bin/flock -n /usr/local/bin/phcp-cron-nas.sh /usr/local/bin/phcp-cron-nas.sh
 _E
 
+### Set up operator shell and user
+
+cat >> /etc/shells << '_E'
+/usr/local/bin/operator/shell.sh
+_E
+adduser --disabled-password --gecos "" --shell /usr/local/bin/operator/shell.sh op
+passwd -d op  # I believe, empty password also disables SSH login
+
+# https://unix.stackexchange.com/questions/719871/login-to-linux-automatically-without-input-username-and-password
+
+#cat > /etc/systemd/system/getty@tty1.service.d/autologin.conf << '_E'
+#[Service]
+#ExecStart=
+#ExecStart=-/sbin/agetty -o '-p -f -- \\u' --noclear --autologin op %I $TERM
+#_E
+
+
+

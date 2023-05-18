@@ -1,0 +1,4 @@
+#!/bin/bash
+
+/home/ershov/bin/cp-zoom
+read -p "Press Enter to continue... "
