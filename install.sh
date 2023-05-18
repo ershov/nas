@@ -47,7 +47,6 @@ USERHOME="$(bash -c "echo ~$U")"
 ### Mount points
 
 mkdir -p /mnt/data
-mkdir -p /mnt/zoom
 
 ### Set up Samba
 
@@ -114,25 +113,33 @@ udevadm control -R
 #/dev/sdd1 /mnt/zoom/ vfat ro,user,noauto 0 1
 #_E
 
+mkdir -p /mnt/zoom
+mkdir -p /mnt/usb{1,2,3,4}
+# Remove all lines for /mnt/usb*
+perl -ni -E 'print if !m{ /mnt/usb\d }' /etc/fstab
+# https://stackoverflow.com/questions/25638193/detect-if-a-block-device-is-a-local-disk-or-a-removable-usb-disk
+# Generate lines like:
+#   # Auto generated mount points for /dev/sdd -> /mnt/usb1-4
+#   /dev/sdd1 /mnt/usb1 vfat ro,user,noauto 0 1 # usbdrive
+#   /dev/sdd2 /mnt/usb2 vfat ro,user,noauto 0 1 # usbdrive
+#   /dev/sdd3 /mnt/usb3 vfat ro,user,noauto 0 1 # usbdrive
+#   /dev/sdd4 /mnt/usb4 vfat ro,user,noauto 0 1 # usbdrive
+for device in /sys/block/*; do
+    echo $(udevadm info --query=property --path=$device | egrep '^DEVNAME=|^ID_BUS=')
+done \
+| perl -nE '
+    /ID_BUS=usb/
+    && m{DEVNAME=(\S+)}
+    && print
+        "# Auto generated mount points for $1 -> /mnt/usb1-4\n",
+        map {
+            "$1$_ /mnt/usb$_ vfat ro,user,noauto 0 1 # usbdrive\n"
+        } (1..4)
+' >> /etc/fstab
+
 ### Copy scripts
 
 cp -a bin/* /usr/local/bin/
-
-### Set up touch screen (if present)
-
-if lsusb |& fgrep -q USB3IIC_CTP_CONTROL; then
-    cp sbin/touchscreen_track_USB2IIC_CTP_CONTROL.sh /usr/local/bin/
-    chown 0:0 sbin/touchscreen_track_USB2IIC_CTP_CONTROL.sh
-    cat > /etc/sudoers.d/touch << "_E"
-# Allow do dump touch events on the console
-
-User_Alias TOUCH_USERS = $U
-
-TOUCH_USERS ALL = NOPASSWD: /usr/local/bin/touchscreen_track_USB2IIC_CTP_CONTROL.sh
-
-_E
-fi
-
 
 ### Set up crontab actions
 
@@ -160,6 +167,21 @@ passwd -d op  # I believe, empty password also disables SSH login
 #ExecStart=
 #ExecStart=-/sbin/agetty -o '-p -f -- \\u' --noclear --autologin op %I $TERM
 #_E
+
+### Set up touch screen (if present)
+
+if lsusb |& fgrep -q USB3IIC_CTP_CONTROL; then
+    cp sbin/touchscreen_track_USB2IIC_CTP_CONTROL.sh /usr/local/bin/
+    chown 0:0 sbin/touchscreen_track_USB2IIC_CTP_CONTROL.sh
+    cat > /etc/sudoers.d/touch << "_E"
+# Allow do dump touch events on the console
+
+User_Alias TOUCH_USERS = $U, op
+
+TOUCH_USERS ALL = NOPASSWD: /usr/local/bin/touchscreen_track_USB2IIC_CTP_CONTROL.sh
+
+_E
+fi
 
 
 

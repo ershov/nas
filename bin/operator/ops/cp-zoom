@@ -1,4 +1,32 @@
 #!/bin/bash
 
-cp-zoom
+die() { echo "$@"; read -p $'\n'"Press Enter to exit. "; exit 1; }
+
+[[ -z "$MENU" ]] && which fzf >& /dev/null && MENU="fzf --no-multi -i --layout=reverse-list -0"
+[[ -z "$MENU" ]] && which smenu >& /dev/null && MENU="smenu -d -c -n -q"
+[[ -z "$MENU" ]] && die "Please install either one of: fzf, smenu."
+
+DEV="$(
+    for device in /sys/class/block/*; do
+        echo $(udevadm info --query=property --path=$device | egrep 'DEVNAME|ID_BUS|ID_FS_VERSION|ID_FS_TYPE')
+    done \
+    | fgrep ID_BUS=usb \
+    | fgrep ID_FS_TYPE \
+    | $MENU \
+    | perl -nE 'if (/DEVNAME=(\S+)/) { say $1; exit; }'
+)"
+
+[[ -z "$DEV" ]] && die "No usb drive selected.";
+[[ -b "$DEV" ]] || die "Invalid device selected: $DEV";
+
+findmnt -nS "$DEV" && die "Already mounted device $DEV"
+
+mount "$DEV" || die "Mount failed"
+MNTDIR="$(findmnt -nS "$DEV" | perl -naE 'print $F[0]')"
+[[ -z "$MNTDIR" ]] && { echo "Unable to find the mount point for $DEV:"; findmnt -nS "$DEV"; umount "$DEV"; exit 1; }
+echo Copyng "$MNTDIR"/STEREO/.../... to /mnt/data/incoming/Recordings/Zoom/ ...
+ls -lh /mnt/zoom/STEREO/*/*
+time cp -nv "$MNTDIR"/STEREO/*/* /mnt/data/incoming/Recordings/Zoom/
+umount "$DEV"
+
 read -p "Press Enter to continue... "

@@ -1,0 +1,3 @@
+#!/bin/bash
+
+sudo touchscreen_track_USB2IIC_CTP_CONTROL.sh

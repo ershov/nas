@@ -1,3 +1,4 @@
 #!/bin/bash
 
-/usr/bin/lsblk |& less
+/usr/bin/lsblk |& less +G
+

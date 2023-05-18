@@ -1,0 +1,31 @@
+#!/bin/bash
+
+# Rework of:
+# https://stackoverflow.com/questions/25638193/detect-if-a-block-device-is-a-local-disk-or-a-removable-usb-disk
+
+#for device in /sys/block/sd*; do
+#    echo $device $(udevadm info --query=property --path=$device | egrep '^DEVNAME=|^ID_BUS=')
+#done
+
+for device in /sys/class/block/*; do
+    udevadm info --query=property --path=$device
+    echo
+done \
+| perl -nE '
+    BEGIN { $row = {}; }
+    if (/^([^=]++)=(.*)$/) {
+        $row->{$1} = $2;
+    } else {
+        %$row and push @rows, $row;
+        $row = {};
+    }
+    END {
+        @ff = qw/DEVNAME ID_BUS ID_PART_TABLE_TYPE ID_FS_VERSION ID_FS_TYPE/;
+        say join "\t", @ff;
+        for my $row (@rows) {
+            say join "\t", map {$row->{$_}} @ff
+        }
+    }' \
+| column -t -s $'\t' \
+| less +G
+
