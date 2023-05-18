@@ -1,0 +1,8 @@
+#!/bin/bash
+
+die() { echo "$@"; exit 1; }
+mount | fgrep -q /mnt/zoom/ && die "$(mount | fgrep /mnt/zoom/)"
+set -uexo pipefail
+mount /mnt/zoom/
+time cp -nv /mnt/zoom/STEREO/FOLDER01/* /mnt/data/incoming/Recordings/Zoom/
+umount /mnt/zoom
