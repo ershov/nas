@@ -1,0 +1,153 @@
+#!/usr/bin/perl
+
+use v5.26;
+use warnings;
+no warnings 'uninitialized';
+use strict;
+
+if ($ARGV[0] =~ /^[-]+h(elp)?$/) {
+  ($_=$0) =~ m{/([^/]+)$} and $_ = $1;
+  print << "_E";
+Display HTML in flat format suitable for grepping.
+
+Usage:
+[K=V ...] $_ file.js
+[K=V ...] $_ < file.html
+
+Environment variables:
+
+ID="id class aria-label role" - List of attributes of interest.
+IDCLASS=""                    - List of CSS classes of interest.
+SEP=">"                       - Hierarchy separator.
+SEP2=":"                      - Attribute separator.
+NL=" "                        - Newlines replacement string.
+EXPAND_CLASS=1                - (bool) Whether to put each class on a separate line.
+ID_ON_OPEN=1                  - (bool) Whether to print the tag's ID on start.
+ID_IN_PATH=1                  - (bool) Whether to add the tag's ID in path.
+
+Examples:
+
+\$ SEP=' ' NL=\$'\\n' IDCLASS="grid item" $_ index.html
+
+_E
+  exit;
+}
+
+use Data::Dumper;
+use HTML::Parser;
+use List::Util qw/reduce/;
+
+my %block = map {($_ => 1)} qw/address article aside blockquote canvas dd div dl dt fieldset figcaption figure footer form h1 - h6 header hr li main nav noscript ol p pre section table tfoot ul video/;
+my %inline = map {($_ => 1)} qw/a abbr acronym b bdo big br button cite code dfn em i img input kbd label map object output q samp script select small span strong sub sup textarea time tt var/;
+my %selfClosing = map {($_ => 1)} qw/area base br col embed hr img input link meta param source track wbr command keygen menuitem/;
+my @stack;
+
+sub E($$) { exists $ENV{$_[0]} ? $ENV{$_[0]} : $_[1]; }
+
+# Include these attrs in the path
+my %ID = map {($_ => 1)} split /[ \t,;:]+/, E("ID", "id class aria-label role");
+my @id2 = grep {$_ ne 'id' && $_ ne 'class'} keys %ID;
+my %IDCLASS = map {($_ => 1)} split /[ \t,;:]+/, E("IDCLASS", "");
+
+# Path separator
+my $SEP = E("SEP", '>');
+# Attr separator
+my $SEP2 = E("SEP2", ':');
+# Newline
+my $NL = E("NL", ' ');
+
+my $EXPAND_CLASS = E("EXPAND_CLASS", 1);
+my $ID_ON_OPEN = E("ID_ON_OPEN", 1);
+my $ID_IN_PATH = E("ID_IN_PATH", 1);
+my $INCLUDE = map {($_ => 1)} split /[ \t,;:]+/, E("INCLUDE", "");
+my $EXCLUDE = map {($_ => 1)} split /[ \t,;:]+/, E("EXCLUDE", "");
+
+sub Attrs {
+  my $attrs = $_[0];
+  my $ret = '';
+  $ret .= "#$attrs->{id}" if $ID{id} && $attrs->{id};
+  $ret .= join "", map {".$_"} sort grep {%IDCLASS ? exists $IDCLASS{$_} : 1} split /[\t ]+/, $attrs->{class} if $ID{class} && $attrs->{class};
+  for my $k (@id2) {
+    $ret .= "[$k=\"$attrs->{$k}\"]" if $attrs->{$k};
+  }
+  $ret
+}
+
+sub StripAttrs { $_[0] =~ s/[^a-zA-Z0-9_\-:].*$//r }
+
+sub PushTag {
+  return undef if $selfClosing{$_[0]};
+  push @stack, $_[1];
+  return 1;
+}
+
+sub PopTag {
+  my $tag = $_[0];
+  my $i = 0;
+  my $idx = reduce { $i++; StripAttrs($b) eq $tag ? $i : $a } 0, @stack or return ();
+  return splice @stack, $idx-1;
+}
+
+sub decode_deti {
+  # Decoded from deti-online.com audioplayer.js:
+  #  function je() {
+  #    for (E = 0; E < re.length; E++) {
+  #      (e = (X = re[E]).dataset).f;
+  #      var e, t = "//stat4.deti-online.com/s/" + e.f.replace(/[a-zA-Z]/g, function(e) {
+  #        return String.fromCharCode((e <= "Z" ? 90 : 122) >= (e = e.charCodeAt(0) + 13) ? e : e - 26)
+  #      }) + "." + c;
+  #      se[e.id] = {
+  #        title: X.querySelector(".name").textContent,
+  #        src: t
+  #      },
+  # ...
+  my $x;
+  return $_[0] =~ s/[a-zA-Z]/chr((ord($&) <= ord("Z") ? 90 : 122) >= ($x = ord($&)+13) ? $x : $x-26)/ger;
+}
+
+my $p = HTML::Parser->new(
+  empty_element_tags => 1,
+  unbroken_text => 1,
+  utf8_mode => 1,
+  start_h => [sub{
+    my ($tagname, $attr, $attrseq) = @_;
+    $tagname = lc($tagname);
+    my @attrlcseq = map {lc($_)} @$attrseq;
+    my %attrlc = map {($_, $attr->{$_})} @$attrseq;
+    my $attrStr = Attrs(\%attrlc);
+    my $newName = join "", ($tagname, ($ID_IN_PATH && $attrStr) || ());
+    my $prefix = join $SEP, (@stack, $newName);
+    say join " ", ("$prefix {", ($ID_ON_OPEN && $attrStr) || ());
+    for my $a (sort @$attrseq) {
+      my $aa = lc($a);
+      say "$prefix$SEP2$aa = $attr->{$a}";
+      if ($EXPAND_CLASS && $aa eq 'class') {
+        for my $c (split /[\t ]+/, $attr->{class}) {
+          say "$prefix$SEP2$aa.$c";
+        }
+      }
+    }
+    say "$prefix }" if !PushTag($tagname, $newName);
+  }, "tagname, attr, attrseq"],
+  end_h   => [sub{
+    my ($tagname) = @_;
+    $tagname = lc($tagname);
+    say "".(join $SEP, @stack)." } /$tagname";
+    my @a = PopTag($tagname);
+    if ($#a == 1 && $a[0] eq $tagname) { return; }
+    while (pop @a && @a) {
+      say "".(join $SEP, @stack, @a)." }";
+    }
+  }, "tagname"],
+  text_h=>[sub{
+    my ($dtext) = @_;
+    say "".(join $SEP, @stack)."::text = ".($dtext =~ s/[\r\n]/$NL/gr);
+  }, "dtext"],
+  comment_h=>[sub{
+    my ($text) = @_;
+    say "".(join $SEP, @stack)."::comment = ".($text =~ s/[\r\n]/$NL/gr);
+  }, "text"],
+);
+
+$p->parse_file((!@ARGV || $ARGV[0] eq '-') ? *STDIN : $ARGV[0]);
+
