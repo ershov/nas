@@ -4,6 +4,7 @@ die() { echo "$@"; exit 1; }
 
 U="$1"
 id -u "$U" || die "Please supply your main non-root user on the command line."
+cd "$(dirname "$(readlink -f ${BASH_SOURCE[0]})")" || die "Unable to find the script dir"
 [ -f ./install.sh ] || die "Please run the script from its directory."
 
 set -uxeo pipefail
@@ -26,6 +27,15 @@ DEBIAN_FRONTEND=noninteractive apt install -y \
     exfatprogs \
     ffmpeg \
     youtube-dl \
+    \
+    openvpn easy-rsa \
+    nmap \
+    fzf smenu \
+    #zfsutils-linux \
+    #hwinfo ln-sensors \
+    #fbset \
+    #gpm \
+    #autoconf automake libtool gettext make yacc bison \
     #
 
 ### Seed user's home
