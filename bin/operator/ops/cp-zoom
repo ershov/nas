@@ -2,6 +2,13 @@
 
 die() { echo "$@"; read -p $'\n'"Press Enter to exit. "; exit 1; }
 
+OWNER="$(stat -c %U /mnt/data/incoming/Recordings/Zoom)" || die "Destination dir doesn't exist"
+if [[ "$(id -un)" != "$OWNER" ]]; then
+    [[ -n "$1" ]] && die "Failed to sudo"
+    exec sudo -u "$OWNER" -g "$OWNER" "$(readlink -f ${BASH_SOURCE[0]})" 123
+    die "Failed to sudo"
+fi
+
 [[ -z "$MENU" ]] && which fzf >& /dev/null && MENU="fzf --no-multi -i --layout=reverse-list -0"
 [[ -z "$MENU" ]] && which smenu >& /dev/null && MENU="smenu -d -c -n -q"
 [[ -z "$MENU" ]] && die "Please install either one of: fzf, smenu."

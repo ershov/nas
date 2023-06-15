@@ -16,11 +16,12 @@ setupcon
 
 ### Install packages
 
+# --no-install-recommends
 apt update -y
 DEBIAN_FRONTEND=noninteractive apt install -y \
-    nethogs iftop iptraf-ng sysstat \
+    nethogs iftop iptraf-ng sysstat smartmontools \
     samba \
-    less \
+    less pv progress \
     tig exuberant-ctags \
     locate \
     ascii \
@@ -31,6 +32,8 @@ DEBIAN_FRONTEND=noninteractive apt install -y \
     openvpn easy-rsa \
     nmap \
     fzf smenu \
+    encfs fuse-zip zip 7zip \
+    #ccls clangd \
     #zfsutils-linux \
     #hwinfo ln-sensors \
     #fbset \
@@ -140,6 +143,7 @@ done \
 ### Copy scripts
 
 cp -a bin/* /usr/local/bin/
+(cd /usr/local/bin/; ln -s operator/shell.sh ./op)
 
 ### Set up crontab actions
 
