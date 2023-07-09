@@ -33,7 +33,15 @@ MNTDIR="$(findmnt -nS "$DEV" | perl -naE 'print $F[0]')"
 [[ -z "$MNTDIR" ]] && { echo "Unable to find the mount point for $DEV:"; findmnt -nS "$DEV"; umount "$DEV"; exit 1; }
 echo Copyng "$MNTDIR"/STEREO/.../... to /mnt/data/incoming/Recordings/Zoom/ ...
 ls -lh /mnt/zoom/STEREO/*/*
-time cp -nv "$MNTDIR"/STEREO/*/* /mnt/data/incoming/Recordings/Zoom/
+if which tmux >& /dev/null && which progress; then
+    time tmux \
+        new-session "cp -nv "$MNTDIR"/STEREO/*/* /mnt/data/incoming/Recordings/Zoom/" \; \
+        splitw 'progress -m $ppid' \; \
+        resize-pane -y 5 \; \
+        last-pane
+else
+    time cp -nv "$MNTDIR"/STEREO/*/* /mnt/data/incoming/Recordings/Zoom/
+fi
 umount "$DEV"
 
 read -p "Press Enter to continue... "
